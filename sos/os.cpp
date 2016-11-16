@@ -1,9 +1,20 @@
 #include <iostream>
+#include <list>
+#include <vector>
+#include <map>
+#include <queue>
+
 using namespace std;
+
+// Data structures and global variables
+std::list<std::vector<int> > JOBTABLE;
+std::map<int, int> FREESPACETABLE;
+std::queue<int*> readyq;
+
 
 void siodisk(int jobnum);
 
-void siodrum(int jobnum, int jobsize, int coreaddress, int direction);
+void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
  // Channel commands siodisk and siodrum are made available to you by the simulator.
  // siodisk has one argument: job number, of type int and passed by value.
  // siodrum has four arguments, all of type int and passed by value:
@@ -13,6 +24,8 @@ void siodrum(int jobnum, int jobsize, int coreaddress, int direction);
  // fourth argument is interpreted as follows:
  // 1 => move from core (memory) to drum
  // 0 => move from drum to core (memory)
+
+}
 
 void ontrace(); // called without arguments
 void offtrace(); // called without arguments
@@ -28,6 +41,7 @@ void startup()
 {
  // Allows initialization of static system variables declared above.
  // Called once at start of the simulation.
+
 
 }
 
@@ -55,6 +69,7 @@ void Drmint (long &a, long p[])
 {
  // Drum interrupt.
  // At call: p [5] = current time
+
 }
 void Tro (long &a, long p[])
 {
@@ -69,4 +84,5 @@ void Svc (long &a, long p[])
  // a = 6 => job requests disk i/o
  // a = 7 => job wants to be blocked until all its pending
  // I/O requests are completed
+
 }
