@@ -23,7 +23,9 @@
 			<Add option="-Wall" />
 			<Add option="-fexceptions" />
 		</Compiler>
-		<Unit filename="main.cpp" />
+		<Unit filename="Job.h" />
+		<Unit filename="os.cpp" />
+		<Unit filename="sos.o" />
 		<Extensions>
 			<code_completion />
 			<envvars />

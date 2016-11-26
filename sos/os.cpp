@@ -3,16 +3,19 @@
 #include <vector>
 #include <map>
 #include <queue>
+#include "Job.h"
 
 using namespace std;
 
 // Data structures and global variables
 std::list<std::vector<int> > JOBTABLE;
-std::map<int, int> FREESPACETABLE;
+//std::vector<Job> JOBTABLE;
+std::map<int, int> FREESPACETABLE; // address and size pair
 std::queue<int*> readyq;
 
 
 void siodisk(int jobnum);
+void initFST();
 
 void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
  // Channel commands siodisk and siodrum are made available to you by the simulator.
@@ -24,6 +27,7 @@ void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
  // fourth argument is interpreted as follows:
  // 1 => move from core (memory) to drum
  // 0 => move from drum to core (memory)
+
 
 }
 
@@ -41,7 +45,8 @@ void startup()
 {
  // Allows initialization of static system variables declared above.
  // Called once at start of the simulation.
-
+    ontrace();
+    initFST();
 
 }
 
@@ -84,5 +89,55 @@ void Svc (long &a, long p[])
  // a = 6 => job requests disk i/o
  // a = 7 => job wants to be blocked until all its pending
  // I/O requests are completed
+
+}
+
+// Create 100 elements in FST
+void initFST()
+{
+    for (int i = 1; i <= 100; i++)
+    {
+        FREESPACETABLE[i] = 0;
+
+    }
+}
+
+void addJob (int jobnum, int jobsize, int coreaddress, int direction)
+{
+    // Place the parameters in a temp vector
+    std::vector<int> newJob;
+    newJob.push_back (jobnum);
+    newJob.push_back (jobsize);
+    newJob.push_back (coreaddress);
+    newJob.push_back (direction);
+
+    // Add the temp vector to the JOBTABLE
+    JOBTABLE.push_back(newJob);
+
+}
+
+int findFreeSpace()
+{
+    for (int i = 1; i <= FREESPACETABLE.size(); i++)
+    {
+        if (FREESPACETABLE[i] == 0)
+        {
+            return i;
+        }
+    }
+
+    // if there is no free space
+    return -1;
+}
+
+void clearSpace(int index)
+{
+    FREESPACETABLE[index] = 0;
+}
+
+void swapper()
+{
+
+
 
 }

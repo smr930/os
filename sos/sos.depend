@@ -2,3 +2,10 @@
 1478556961 source:c:\users\mohsin\documents\c++\sos\os.cpp
 	<iostream>
 
+1480197535 source:c:\users\mohsin\documents\codeblocks projects\sos\os.cpp
+	<iostream>
+	<list>
+	<vector>
+	<map>
+	<queue>
+
