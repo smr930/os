@@ -8,14 +8,17 @@
 using namespace std;
 
 // Data structures and global variables
-std::list<std::vector<int> > JOBTABLE;
-//std::vector<Job> JOBTABLE;
+std::vector<Job> JOBTABLE;
 std::map<int, int> FREESPACETABLE; // address and size pair
 std::queue<int*> readyq;
 
 
 void siodisk(int jobnum);
 void initFST();
+void addJobToJobtable (long jobNumber, long priority, long jobSize, long maxCpuTime, long currTime);
+void printJobtable();
+void printFST();
+void swapper(long jobNumber);
 
 void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
  // Channel commands siodisk and siodrum are made available to you by the simulator.
@@ -48,6 +51,7 @@ void startup()
     ontrace();
     initFST();
 
+
 }
 
 // INTERRUPT HANDLERS
@@ -65,17 +69,20 @@ void Crint (long &a, long p[])
  // p [5] = current time
 
 }
+
 void Dskint (long &a, long p[])
 {
  // Disk interrupt.
  // At call: p [5] = current time
 }
+
 void Drmint (long &a, long p[])
 {
  // Drum interrupt.
  // At call: p [5] = current time
 
 }
+
 void Tro (long &a, long p[])
 {
  // Timer-Run-Out.
@@ -95,34 +102,54 @@ void Svc (long &a, long p[])
 // Create 100 elements in FST
 void initFST()
 {
-    for (int i = 1; i <= 100; i++)
+    for (int i = 0; i < 100; i++)
     {
-        FREESPACETABLE[i] = 0;
-
+        FREESPACETABLE.insert(pair<int, int> (i, 0));
     }
 }
 
-void addJob (int jobnum, int jobsize, int coreaddress, int direction)
+void addJobToJobtable (long jobNumber, long priority, long jobSize, long maxCpuTime, long currTime)
 {
-    // Place the parameters in a temp vector
-    std::vector<int> newJob;
-    newJob.push_back (jobnum);
-    newJob.push_back (jobsize);
-    newJob.push_back (coreaddress);
-    newJob.push_back (direction);
+    // Place the parameters in a temp job container
+    Job newJob(jobNumber, priority, jobSize, maxCpuTime, currTime);
 
     // Add the temp vector to the JOBTABLE
     JOBTABLE.push_back(newJob);
-
 }
 
-int findFreeSpace()
+void printJobtable()
 {
-    for (int i = 1; i <= FREESPACETABLE.size(); i++)
+    cout << "\n -- JOBTABLE --" << endl;
+    for (int i = 0; i < JOBTABLE.size(); i++)
     {
-        if (FREESPACETABLE[i] == 0)
+        cout << "Job Num: " << JOBTABLE[i].getJobNumber() << '\t'
+             << "Job Size: " << JOBTABLE[i].getJobSize() << '\t'
+             << endl;
+    }
+}
+
+void printFST()
+{
+    cout << " -- FST -- " << endl;
+    cout << "Addr  Size" << endl;
+    map<int, int>::iterator fstIter;
+
+    for (fstIter = FREESPACETABLE.begin(); fstIter != FREESPACETABLE.end(); fstIter++)
+    {
+        cout << fstIter->first << "  =>  " << fstIter->second << endl;
+    }
+}
+
+// Find space based on job size
+int findFreeSpace(int jobSize)
+{
+    map<int, int>::iterator fstIter;
+
+    for (fstIter = FREESPACETABLE.begin(); fstIter != FREESPACETABLE.end(); fstIter++)
+    {
+        if (fstIter->second >= jobSize)
         {
-            return i;
+            return fstIter->first;
         }
     }
 
@@ -133,9 +160,10 @@ int findFreeSpace()
 void clearSpace(int index)
 {
     FREESPACETABLE[index] = 0;
+
 }
 
-void swapper()
+void swapper(long jobNumber)
 {
 
 

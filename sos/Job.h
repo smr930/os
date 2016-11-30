@@ -21,9 +21,9 @@ class Job
 public:
     Job()
     {
-        jobNumber = 0;
+        jobNumber = -1;
         jobSize = 0;
-        address = 0;
+        address = -1;
         timeSlice = 0;
         direction = 0;
         timeArrived = 0;
@@ -38,12 +38,13 @@ public:
 
     }
 
-    Job (long _jobNumber, long _jobSize, long _address, long _direction)
+    Job (long _jobNumber, long _priority, long _jobSize, long maxCpuTime, long currTime)
     {
         jobNumber = _jobNumber;
+        priority = _priority;
         jobSize = _jobSize;
-        address = _address;
-        direction = _direction;
+        timeSlice = maxCpuTime;
+        timeArrived = currTime;
     }
 
     long getJobNumber()
