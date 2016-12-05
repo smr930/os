@@ -7,10 +7,11 @@
 
 using namespace std;
 
+
 // Data structures and global variables
-std::vector<Job> JOBTABLE;
+std::list<Job> JOBTABLE; //doubly-linked
 std::map<int, int> FREESPACETABLE; // address and size pair
-std::queue<int*> readyq;
+std::queue<Job *> readyq; //ready queue points to PCBs
 
 
 void siodisk(int jobnum);
@@ -19,6 +20,7 @@ void addJobToJobtable (long jobNumber, long priority, long jobSize, long maxCpuT
 void printJobtable();
 void printFST();
 void swapper(long jobNumber);
+
 
 void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
  // Channel commands siodisk and siodrum are made available to you by the simulator.
@@ -67,8 +69,24 @@ void Crint (long &a, long p[])
  // p [3] = job size, K bytes
  // p [4] = max CPU time allowed for job
  // p [5] = current time
-
+ 
+ //first param represents block state: all new jobs unblocked by default
+     addJobtoJobTable(p[1], p[2], p[3],p[4], p[5]);
+     swapper();
+     scheduler();
+ 
 }
+
+/*
+function adds a new job into the JOBTABLE
+*/
+void addJobtoJobTable (int jobnum, int priority, int jobsize, int maxCPUtime, int currtime)
+{
+    Job newJobTableEntry = new Job(jobnum, jobsize, maxCPUtime, currtime, priority);
+    JOBTABLE.push_back(newJobTableEntry); //add job entry to end of list
+    return;
+}
+
 
 void Dskint (long &a, long p[])
 {
@@ -169,3 +187,38 @@ void swapper(long jobNumber)
 
 
 }
+
+/*
+scheduler uses round robin implementation:
+picks the next job to run from the ready queue
+and sets time quantum
+*/
+void scheduler()
+{
+    int timequantum = 2;
+    Job *dummyPtr = new Job();
+    Job *nextJobToRun = dummyPtr;
+
+    //keep looking for jobs to run that are not blocked
+    while(!readyq.empty()){
+        readyq.top();
+        while(nextJobToRun[1] == 0){
+              readyq.pop();
+              readyq.push();
+              nextJobToRun = readyq.top();
+        }
+    }
+    //meets this condition if queue is empty or all jobs are blocked
+    if(nextJobToRun == dummyPtr){
+          *a = 1; //no job to run
+    } else {
+         dispatcher(nextJobToRun, timequantum );
+    }
+}
+
+void dispatcher(std::vector<int> job, int timequantum)
+{
+
+
+}
+
