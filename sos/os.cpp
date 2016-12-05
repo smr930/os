@@ -69,12 +69,12 @@ void Crint (long &a, long p[])
  // p [3] = job size, K bytes
  // p [4] = max CPU time allowed for job
  // p [5] = current time
- 
+
  //first param represents block state: all new jobs unblocked by default
      addJobtoJobTable(p[1], p[2], p[3],p[4], p[5]);
      swapper();
      scheduler();
- 
+
 }
 
 /*
@@ -114,6 +114,13 @@ void Svc (long &a, long p[])
  // a = 6 => job requests disk i/o
  // a = 7 => job wants to be blocked until all its pending
  // I/O requests are completed
+
+      switch (a):
+          case 5:
+          case 6:
+          case 7:
+          default: cout << "there was error with service request";
+
 
 }
 
@@ -216,9 +223,11 @@ void scheduler()
     }
 }
 
-void dispatcher(std::vector<int> job, int timequantum)
+void dispatcher(Job *nextJob, int timequantum)
 {
-
-
+    *a = 2; //run a job
+    p[2] = nextJob->getAddress();
+    p[3] = nextJob->getJobSize();
+    p[4] = timequantum;
 }
 
