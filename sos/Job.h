@@ -6,7 +6,7 @@ class Job
     long jobNumber;
     long jobSize;
 	long address;
-    long timeSlice;
+    long maxCPUtime;
     long direction;
     long timeArrived;
     long ioRequest;
@@ -18,14 +18,15 @@ class Job
 	bool running;
     bool terminated;
 
-public:
+  public:
+    //default constructor
     Job()
     {
         jobNumber = -1;
         jobSize = 0;
+        //FST memory starts at 0 and all jobs start outside of memory
         address = -1;
-        timeSlice = 0;
-        direction = 0;
+        maxCPUtime = 0;
         timeArrived = 0;
         ioRequest = 0;
         priority = 0;
@@ -38,13 +39,22 @@ public:
 
     }
 
-    Job (long _jobNumber, long _priority, long _jobSize, long maxCpuTime, long currTime)
+
+    Job (long jobNumber, long jobSize, long maxCPUtime, long timeArrived, long priority)
     {
-        jobNumber = _jobNumber;
-        priority = _priority;
-        jobSize = _jobSize;
-        timeSlice = maxCpuTime;
-        timeArrived = currTime;
+    this.jobNumber = jobNumber;
+    this.jobSize = jobSize;
+	this.address = -1;
+    this.maxCPUtime = maxCPUtime;
+    this.timeArrived = timeArrived;
+    this.ioRequest = 0; //start with no I/O requests
+	this.priority = priority;
+
+    this.latched = false;
+    this.blocked = false;
+	this.inMemory = false;
+	this.running = false;
+    this.terminated false;
     }
 
     long getJobNumber()
@@ -77,14 +87,14 @@ public:
         jobSize = n;
     }
 
-    long getTimeSlice()
+    long getmaxCPUtime()
     {
-        return timeSlice;
+        return maxCPUtime;
     }
 
-    void setTimeSlice (long n)
+    void setmaxCPUtime (long n)
     {
-        timeSlice = n;
+        maxCPUtime = n;
     }
 
     long getDirection()
