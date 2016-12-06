@@ -7,20 +7,22 @@
 
 using namespace std;
 
-
 // Data structures and global variables
-std::list<Job> JOBTABLE; //doubly-linked
+std::vector<Job> JOBTABLE;
 std::map<int, int> FREESPACETABLE; // address and size pair
-std::queue<Job *> readyq; //ready queue points to PCBs
-
+std::queue<int*> readyq;
+std::queue<int*> ioQueue;
 
 void siodisk(int jobnum);
 void initFST();
 void addJobToJobtable (long jobNumber, long priority, long jobSize, long maxCpuTime, long currTime);
+void addJobToFST(long jobNumber);
 void printJobtable();
 void printFST();
+int  findFreeSpace(int jobSize);
+void clearSpace(int index);
+void clearSpace(int start, int end);
 void swapper(long jobNumber);
-
 
 void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
  // Channel commands siodisk and siodrum are made available to you by the simulator.
@@ -53,7 +55,6 @@ void startup()
     ontrace();
     initFST();
 
-
 }
 
 // INTERRUPT HANDLERS
@@ -70,23 +71,11 @@ void Crint (long &a, long p[])
  // p [4] = max CPU time allowed for job
  // p [5] = current time
 
- //first param represents block state: all new jobs unblocked by default
-     addJobtoJobTable(p[1], p[2], p[3],p[4], p[5]);
-     swapper();
-     scheduler();
-
+    addJobToJobtable(p[1], p[2], p[3], p[4], p[5]);
+    printJobtable();
+    addJobToFST(p[1]);
+    printFST();
 }
-
-/*
-function adds a new job into the JOBTABLE
-*/
-void addJobtoJobTable (int jobnum, int priority, int jobsize, int maxCPUtime, int currtime)
-{
-    Job newJobTableEntry = new Job(jobnum, jobsize, maxCPUtime, currtime, priority);
-    JOBTABLE.push_back(newJobTableEntry); //add job entry to end of list
-    return;
-}
-
 
 void Dskint (long &a, long p[])
 {
@@ -112,15 +101,8 @@ void Svc (long &a, long p[])
  // At call: p [5] = current time
  // a = 5 => job has terminated
  // a = 6 => job requests disk i/o
- // a = 7 => job wants to be blocked until all its pending
+ // a = 7 => job wants to be blocked un 5til all its pending
  // I/O requests are completed
-
-      switch (a):
-          case 5:
-          case 6:
-          case 7:
-          default: cout << "there was error with service request";
-
 
 }
 
@@ -155,13 +137,19 @@ void printJobtable()
 
 void printFST()
 {
-    cout << " -- FST -- " << endl;
-    cout << "Addr  Size" << endl;
+    cout << "\n -- FREE SPACE TABLE -- " << endl;
+    cout << "Addr   Size" << endl;
     map<int, int>::iterator fstIter;
+    int i = 0;
 
     for (fstIter = FREESPACETABLE.begin(); fstIter != FREESPACETABLE.end(); fstIter++)
     {
-        cout << fstIter->first << "  =>  " << fstIter->second << endl;
+        if (i < 10)
+           cout << fstIter->first << "   =>  " << fstIter->second << endl;
+        else
+            cout << fstIter->first << "  =>  " << fstIter->second << endl;
+
+        i++;
     }
 }
 
@@ -182,52 +170,49 @@ int findFreeSpace(int jobSize)
     return -1;
 }
 
-void clearSpace(int index)
+void addJobToFST(long jobNumber)
+{
+    cout << "\n---------------------" << endl;
+    cout << "Inside addJobToFST(): " << endl;
+
+    int index = jobNumber - 1;
+    long currJobSize = JOBTABLE[index].getJobSize();
+    long currJobAddress = JOBTABLE[index-1].getAddress();
+
+    FREESPACETABLE[currJobAddress] = currJobSize;
+
+    cout << "FREESPACETABLE[" << currJobAddress << "] = " << currJobSize << endl;
+}
+
+void clearSpace (int index)
 {
     FREESPACETABLE[index] = 0;
 
 }
 
-void swapper(long jobNumber)
+void clearSpace (int start, int end)
 {
-
-
-
-}
-
-/*
-scheduler uses round robin implementation:
-picks the next job to run from the ready queue
-and sets time quantum
-*/
-void scheduler()
-{
-    int timequantum = 2;
-    Job *dummyPtr = new Job();
-    Job *nextJobToRun = dummyPtr;
-
-    //keep looking for jobs to run that are not blocked
-    while(!readyq.empty()){
-        readyq.top();
-        while(nextJobToRun[1] == 0){
-              readyq.pop();
-              readyq.push();
-              nextJobToRun = readyq.top();
-        }
-    }
-    //meets this condition if queue is empty or all jobs are blocked
-    if(nextJobToRun == dummyPtr){
-          *a = 1; //no job to run
-    } else {
-         dispatcher(nextJobToRun, timequantum );
+    for (int i = start; i < end; i++)
+    {
+        clearSpace(i);
     }
 }
 
-void dispatcher(Job *nextJob, int timequantum)
+// Handles requests for swapping, starts a drum swap (using SOS function Siodrum), handles drum
+// interrupts (Drmint), and selects which job currently on the drum should be swapped into memory.
+void swapper(long jobNumber, long direction)
 {
-    *a = 2; //run a job
-    p[2] = nextJob->getAddress();
-    p[3] = nextJob->getJobSize();
-    p[4] = timequantum;
-}
+    // direction = 0, drum to memory
+    if (direction == 0)
+    {
 
+    }
+
+    // direction = 1, memory to drum
+    else if (direction == 1)
+    {
+
+    }
+
+    // call siodrum(p[]);.
+}
