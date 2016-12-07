@@ -22,6 +22,7 @@ void printFST();
 int  findFreeSpace(int jobSize);
 void clearSpace(int index);
 void clearSpace(int start, int end);
+int  findJob(long jobNum);
 void swapper(long jobNumber);
 
 void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
@@ -71,10 +72,12 @@ void Crint (long &a, long p[])
  // p [4] = max CPU time allowed for job
  // p [5] = current time
 
+    cout << "findFreeSpace = " << findFreeSpace(p[3]) << endl;
     addJobToJobtable(p[1], p[2], p[3], p[4], p[5]);
-    printJobtable();
+    //printJobtable();
     addJobToFST(p[1]);
-    printFST();
+    //printFST();
+    swapper(p[1]);
 }
 
 void Dskint (long &a, long p[])
@@ -156,14 +159,29 @@ void printFST()
 // Find space based on job size
 int findFreeSpace(int jobSize)
 {
+    int contigous = 0;
+    int index;
+    bool foundIndex = false;
     map<int, int>::iterator fstIter;
 
     for (fstIter = FREESPACETABLE.begin(); fstIter != FREESPACETABLE.end(); fstIter++)
     {
-        if (fstIter->second >= jobSize)
+        if (fstIter->second == 0)
         {
-            return fstIter->first;
+            contigous++;
+            if (!foundIndex)
+                index = fstIter->first;
+                foundIndex = true;
         }
+        else
+            break;
+
+    }
+
+    if (contigous >= jobSize)
+    {
+        //cout << "contigous: " << contigous << endl;
+        return index;
     }
 
     // if there is no free space
@@ -178,10 +196,23 @@ void addJobToFST(long jobNumber)
     int index = jobNumber - 1;
     long currJobSize = JOBTABLE[index].getJobSize();
     long currJobAddress = JOBTABLE[index-1].getAddress();
+    JOBTABLE[index].setInMemory(true);
 
     FREESPACETABLE[currJobAddress] = currJobSize;
 
     cout << "FREESPACETABLE[" << currJobAddress << "] = " << currJobSize << endl;
+}
+
+int findJob(long jobNum)
+{
+    for(int i = 0; i < JOBTABLE.size(); i++)
+    {
+        if(JOBTABLE[i].getJobNumber() == jobNum)
+            return i ;
+    }
+
+    cout << "findJob(" << jobNum << "): " << "Job not found!" << endl;
+    return -1;
 }
 
 void clearSpace (int index)
@@ -200,19 +231,24 @@ void clearSpace (int start, int end)
 
 // Handles requests for swapping, starts a drum swap (using SOS function Siodrum), handles drum
 // interrupts (Drmint), and selects which job currently on the drum should be swapped into memory.
-void swapper(long jobNumber, long direction)
+void swapper(long jobNumber)
 {
-    // direction = 0, drum to memory
+    int jobLocation = findJob(jobNumber);
+    int direction = JOBTABLE[jobLocation].getDirection();
+
+    // direction = 0, swap drum to memory
     if (direction == 0)
     {
-
+        siodrum(JOBTABLE[jobLocation].getJobNumber(), JOBTABLE[jobLocation].getJobSize(),
+                JOBTABLE[jobLocation].getAddress(), 0);
     }
 
-    // direction = 1, memory to drum
+    // direction = 1, swap memory to drum
     else if (direction == 1)
     {
-
+        siodrum(JOBTABLE[jobLocation].getJobNumber(), JOBTABLE[jobLocation].getJobSize(),
+                 JOBTABLE[jobLocation].getAddress(), 1);
+        JOBTABLE[jobLocation].setInMemory(false);
     }
 
-    // call siodrum(p[]);.
 }

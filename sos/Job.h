@@ -42,19 +42,19 @@ class Job
 
     Job (long jobNumber, long jobSize, long maxCPUtime, long timeArrived, long priority)
     {
-    this.jobNumber = jobNumber;
-    this.jobSize = jobSize;
-	this.address = -1;
-    this.maxCPUtime = maxCPUtime;
-    this.timeArrived = timeArrived;
-    this.ioRequest = 0; //start with no I/O requests
-	this.priority = priority;
+        this->jobNumber = jobNumber;
+        this->jobSize = jobSize;
+        this->address = -1;
+        this->maxCPUtime = maxCPUtime;
+        this->timeArrived = timeArrived;
+        this->ioRequest = 0; //start with no I/O requests
+        this->priority = priority;
 
-    this.latched = false;
-    this.blocked = false;
-	this.inMemory = false;
-	this.running = false;
-    this.terminated false;
+        this->latched = false;
+        this->blocked = false;
+        this->inMemory = false;
+        this->running = false;
+        this->terminated = false;
     }
 
     long getJobNumber()
