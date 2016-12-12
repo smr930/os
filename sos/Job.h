@@ -27,6 +27,7 @@ class Job
         //FST memory starts at 0 and all jobs start outside of memory
         address = -1;
         maxCPUtime = 0;
+        direction = 0;
         timeArrived = 0;
         ioRequest = 0;
         priority = 0;
@@ -49,6 +50,7 @@ class Job
         this->timeArrived = timeArrived;
         this->ioRequest = 0; //start with no I/O requests
         this->priority = priority;
+        this->direction = 0;
 
         this->latched = false;
         this->blocked = false;
@@ -117,7 +119,7 @@ class Job
         timeArrived = n;
     }
 
-        long getIORequest()
+    long getIORequest()
     {
         return ioRequest;
     }

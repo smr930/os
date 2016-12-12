@@ -21,7 +21,7 @@ void printJobtable();
 void printFST();
 int  findFreeSpace(int jobSize);
 void clearSpace(int index);
-void clearSpace(int start, int end);
+void clearSpace(int startIndex, int endIndex);
 int  findJob(long jobNum);
 void swapper(long jobNumber);
 
@@ -65,19 +65,18 @@ void startup()
 
 void Crint (long &a, long p[])
 {
- // Indicates the arrival of a new job on the drum.
- // At call: p [1] = job number
- // p [2] = priority
- // p [3] = job size, K bytes
- // p [4] = max CPU time allowed for job
- // p [5] = current time
+    // Indicates the arrival of a new job on the drum.
+    // At call: p [1] = job number
+    // p [2] = priority
+    // p [3] = job size, K bytes
+    // p [4] = max CPU time allowed for job
+    // p [5] = current time
 
-    cout << "findFreeSpace = " << findFreeSpace(p[3]) << endl;
     addJobToJobtable(p[1], p[2], p[3], p[4], p[5]);
-    //printJobtable();
-    addJobToFST(p[1]);
-    //printFST();
     swapper(p[1]);
+
+    printJobtable();
+    printFST();
 }
 
 void Dskint (long &a, long p[])
@@ -121,11 +120,13 @@ void initFST()
 void addJobToJobtable (long jobNumber, long priority, long jobSize, long maxCpuTime, long currTime)
 {
     // Place the parameters in a temp job container
-    Job newJob(jobNumber, priority, jobSize, maxCpuTime, currTime);
+    Job newJob(jobNumber, jobSize, maxCpuTime, currTime, priority);
 
     // Add the temp vector to the JOBTABLE
     JOBTABLE.push_back(newJob);
 }
+
+
 
 void printJobtable()
 {
@@ -174,8 +175,7 @@ int findFreeSpace(int jobSize)
                 foundIndex = true;
         }
         else
-            break;
-
+            continue;
     }
 
     if (contigous >= jobSize)
@@ -185,6 +185,7 @@ int findFreeSpace(int jobSize)
     }
 
     // if there is no free space
+    cout << "findFreeSpace(" << jobSize << "): " << "No free space found!" << endl;
     return -1;
 }
 
@@ -193,13 +194,15 @@ void addJobToFST(long jobNumber)
     cout << "\n---------------------" << endl;
     cout << "Inside addJobToFST(): " << endl;
 
-    int index = jobNumber - 1;
-    long currJobSize = JOBTABLE[index].getJobSize();
-    long currJobAddress = JOBTABLE[index-1].getAddress();
-    JOBTABLE[index].setInMemory(true);
+    long currJobSize = JOBTABLE[jobNumber-1].getJobSize();
+    long currJobAddress = findFreeSpace(currJobSize);
+    JOBTABLE[jobNumber-1].SetAddress(currJobAddress);
+    JOBTABLE[jobNumber-1].setInMemory(true);
 
     FREESPACETABLE[currJobAddress] = currJobSize;
 
+    cout << "jobSize: " << currJobSize << endl;
+    cout << "jobAddr: " << currJobAddress << endl;
     cout << "FREESPACETABLE[" << currJobAddress << "] = " << currJobSize << endl;
 }
 
@@ -221,9 +224,9 @@ void clearSpace (int index)
 
 }
 
-void clearSpace (int start, int end)
+void clearSpace (int startIndex, int endIndex)
 {
-    for (int i = start; i < end; i++)
+    for (int i = startIndex; i < endIndex; i++)
     {
         clearSpace(i);
     }
@@ -236,19 +239,30 @@ void swapper(long jobNumber)
     int jobLocation = findJob(jobNumber);
     int direction = JOBTABLE[jobLocation].getDirection();
 
-    // direction = 0, swap drum to memory
+    // direction = 0, swap from drum to memory
     if (direction == 0)
     {
-        siodrum(JOBTABLE[jobLocation].getJobNumber(), JOBTABLE[jobLocation].getJobSize(),
-                JOBTABLE[jobLocation].getAddress(), 0);
+        addJobToFST(jobNumber);
+        readyq.push (new int(JOBTABLE[jobLocation].getJobNumber()) );
     }
 
-    // direction = 1, swap memory to drum
+    // direction = 1, swap from memory to drum
     else if (direction == 1)
     {
-        siodrum(JOBTABLE[jobLocation].getJobNumber(), JOBTABLE[jobLocation].getJobSize(),
-                 JOBTABLE[jobLocation].getAddress(), 1);
-        JOBTABLE[jobLocation].setInMemory(false);
+        if (JOBTABLE[jobLocation].getIORequest() != true || JOBTABLE[jobLocation].isLatched() != true)
+        {
+            if (!readyq.empty())
+                readyq.pop();
+
+            if (!ioQueue.empty())
+                ioQueue.pop();
+
+
+            siodrum(JOBTABLE[jobLocation].getJobNumber(), JOBTABLE[jobLocation].getJobSize(),
+                     JOBTABLE[jobLocation].getAddress(), 1);
+            JOBTABLE[jobLocation].setInMemory(false);
+            clearSpace(jobLocation);
+        }
     }
 
 }
