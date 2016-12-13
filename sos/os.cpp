@@ -9,9 +9,10 @@ using namespace std;
 
 
 // Data structures and global variables
-std::list<Job> JOBTABLE; //doubly-linked
+std::vector<Job> JOBTABLE;
 std::map<int, int> FREESPACETABLE; // address and size pair
-std::queue<Job *> readyq; //ready queue points to PCBs
+std::queue<Job*> readyq; //ready queue points to PCBs
+std::queue<int*> ioQueue;
 
 
 void siodisk(int jobnum);
@@ -20,6 +21,16 @@ void addJobToJobtable (long jobNumber, long priority, long jobSize, long maxCpuT
 void printJobtable();
 void printFST();
 void swapper(long jobNumber);
+
+//prototypes
+void addJobtoJobTable (long& , long& , long& , long& , long& );
+void scheduler(void);
+int findJob(long);
+void addJobToFST(long);
+//Job* makePtrtoJob(Job&);
+Job& makePtrtoJob(Job& job);
+void clearSpace (int ,int );
+void clearSpace (int );
 
 
 void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
@@ -70,17 +81,125 @@ void Crint (long &a, long p[])
  // p [4] = max CPU time allowed for job
  // p [5] = current time
 
- //first param represents block state: all new jobs unblocked by default
-     addJobtoJobTable(p[1], p[2], p[3],p[4], p[5]);
-     swapper();
+     long jobnum = p[1];
+     addJobtoJobTable(jobnum , p[2], p[3],p[4], p[5]);
+     swapper(jobnum);
      scheduler();
+     return;
 
+}
+
+// Handles requests for swapping, starts a drum swap (using SOS function Siodrum), handles drum
+// interrupts (Drmint), and selects which job currently on the drum should be swapped into memory.
+void swapper(long jobNumber)
+{
+    int jobLocation = findJob(jobNumber);
+    int direction = JOBTABLE[jobLocation].getDirection();
+
+    // direction = 0, swap from drum to memory
+    if (direction == 0)
+    {
+        addJobToFST(jobNumber);
+        Job *newJobinMem = makePtrtoJob(JOBTABLE[jobLocation]); //push ptr to job table entry onto ready queue
+        readyq.push (newJobinMem);
+    }
+
+    // direction = 1, swap from memory to drum
+    else if (direction == 1)
+    {
+        if (JOBTABLE[jobLocation].getIORequest() != true || JOBTABLE[jobLocation].isLatched() != true)
+        {
+            if (!readyq.empty())
+                readyq.pop();
+
+            if (!ioQueue.empty())
+                ioQueue.pop();
+
+
+            siodrum(JOBTABLE[jobLocation].getJobNumber(), JOBTABLE[jobLocation].getJobSize(),
+                     JOBTABLE[jobLocation].getAddress(), 1);
+            JOBTABLE[jobLocation].setInMemory(false);
+            clearSpace(jobLocation);
+        }
+    }
+     return;
+}
+
+/*
+1 of 2 helper function for swapper
+clears range
+*/
+void clearSpace (int startIndex, int endIndex)
+{
+    for (int i = startIndex; i < endIndex; i++)
+    {
+        clearSpace(i);
+    }
+}
+
+/*
+1 of 2 clearSpace helper functions for swapper
+clears specific index
+*/
+void clearSpace (int index)
+{
+    FREESPACETABLE[index] = 0;
+
+}
+
+/*
+helper function for swapper
+returns pointer to job
+*/
+Job& makePtrtoJob(Job& job)
+{
+    Job *jobPtr = job;
+    return jobPtr;
+}
+
+
+/*
+function finds free space and bookkeeps
+*/
+
+void addJobToFST(long jobNumber)
+{
+    cout << "\n---------------------" << endl;
+    cout << "Inside addJobToFST(): " << endl;
+
+    long currJobSize = JOBTABLE[jobNumber-1].getJobSize();
+    long currJobAddress = findFreeSpace(currJobSize);
+    JOBTABLE[jobNumber-1].SetAddress(currJobAddress);
+    JOBTABLE[jobNumber-1].setInMemory(true);
+
+    FREESPACETABLE[currJobAddress] = currJobSize;
+
+    cout << "jobSize: " << currJobSize << endl;
+    cout << "jobAddr: " << currJobAddress << endl;
+    cout << "FREESPACETABLE[" << currJobAddress << "] = " << currJobSize << endl;
+}
+
+
+/*
+helper function for swapper
+returns index of job in JOBTABLE
+*/
+int findJob(long jobNum)
+{
+    for(int i = 0; i < JOBTABLE.size(); i++)
+    {
+        if(JOBTABLE[i].getJobNumber() == jobNum)
+            return i;
+    }
+
+    cout << "findJob(" << jobNum << "): " << "Job not found!" << endl;
+    return -1;
 }
 
 /*
 function adds a new job into the JOBTABLE
 */
-void addJobtoJobTable (int jobnum, int priority, int jobsize, int maxCPUtime, int currtime)
+void addJobtoJobTable (long& jobnum, long& priority, long& jobsize, long& maxCPUtime, long& currtime)
 {
     Job newJobTableEntry = new Job(jobnum, jobsize, maxCPUtime, currtime, priority);
     JOBTABLE.push_back(newJobTableEntry); //add job entry to end of list
@@ -115,14 +234,29 @@ void Svc (long &a, long p[])
  // a = 7 => job wants to be blocked until all its pending
  // I/O requests are completed
 
-      switch (a):
-          case 5:
-          case 6:
-          case 7:
-          default: cout << "there was error with service request";
+     switch (a){
+          case 5: terminate();
+                  break;
+          case 6: requestIO();
+                  break;
+          case 7: block();
+                  break;
+          default: cout << "there was error with service request\n";
+                  break;
+      }
+     return;
+}
 
+/*
+head of ready queue represents the job that called
+*/
+void terminate()
+{
+     Job * currJob = readyq.top();
 
 }
+
+
 
 // Create 100 elements in FST
 void initFST()
@@ -188,12 +322,6 @@ void clearSpace(int index)
 
 }
 
-void swapper(long jobNumber)
-{
-
-
-
-}
 
 /*
 scheduler uses round robin implementation:
