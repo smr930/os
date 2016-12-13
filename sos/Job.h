@@ -19,7 +19,7 @@ class Job
     bool terminated;
 
   public:
-    //default constructor
+    //default constructor: used only for dummy pointers
     Job()
     {
         jobNumber = -1;
@@ -40,22 +40,23 @@ class Job
     }
 
 
-    Job (long jobNumber, long jobSize, long maxCPUtime, long timeArrived, long priority)
+    Job (long& jobNumber, long& jobSize, long& maxCPUtime, long& timeArrived, long& priority)
     {
-    this.jobNumber = jobNumber;
-    this.jobSize = jobSize;
-	this.address = -1;
-    this.maxCPUtime = maxCPUtime;
-    this.timeArrived = timeArrived;
-    this.ioRequest = 0; //start with no I/O requests
-	this.priority = priority;
+        jobNumber = jobNumber;
+        jobSize = jobSize;
+        address = -1;
+        maxCPUtime = maxCPUtime;
+        timeArrived = timeArrived;
+        ioRequest = 0; //start with no I/O requests
+        priority = priority;
 
-    this.latched = false;
-    this.blocked = false;
-	this.inMemory = false;
-	this.running = false;
-    this.terminated false;
+        latched = false;
+        blocked = false;
+        inMemory = false;
+        running = false;
+        terminated = false;
     }
+
 
     long getJobNumber()
     {
