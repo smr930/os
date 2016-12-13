@@ -11,7 +11,7 @@ using namespace std;
 // Data structures and global variables
 std::vector<Job> JOBTABLE;
 std::map<int, int> FREESPACETABLE; // address and size pair
-std::queue<Job*> readyq; //ready queue points to PCBs
+std::queue<int> readyq; //ready queue points to PCBs
 std::queue<int*> ioQueue;
 
 
@@ -161,7 +161,6 @@ Job& makePtrtoJob(Job& job)
 /*
 function finds free space and bookkeeps
 */
-
 void addJobToFST(long jobNumber)
 {
     cout << "\n---------------------" << endl;
@@ -248,11 +247,30 @@ void Svc (long &a, long p[])
 }
 
 /*
-head of ready queue represents the job that called
+head of ready queue represents the job that asked to be terminated
 */
 void terminate()
 {
-     Job * currJob = readyq.top();
+     int currJob_num = readyq.top();
+     Job currJob = findJobinJOBTABLE(currJob_num);
+     if(currJob.IsBlocked()){
+          currJob.setset_to_terminate(true);\
+          return;
+     }
+     clearSpace
+
+
+
+}
+
+Job findJobinJOBTABLE(int jobnum)
+{
+    for(int i = 0; i < JOBTABLE.size(); i++){
+        if(JOBTABLE[i].getJobNumber() == jobnum)
+            return JOBTABLE[i];
+    }
+    cout << "ERROR FINDING JOB IN JOBTABLE";
+    return;
 
 }
 
