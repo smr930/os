@@ -17,6 +17,7 @@ class Job
 	bool inMemory;
 	bool running;
     bool terminated;
+    bool set_to_terminate;
 
   public:
     //default constructor: used only for dummy pointers
@@ -36,6 +37,7 @@ class Job
         inMemory = false;
         running = false;
         terminated = false;
+        set_to_terminate = false;
 
     }
 
@@ -55,8 +57,18 @@ class Job
         inMemory = false;
         running = false;
         terminated = false;
+        set_to_terminate = false;
     }
 
+    void setset_to_terminate(bool status)
+    {
+         set_to_terminate = status;
+    }
+
+    void getset_to_terminate(bool status)
+    {
+        return set_to_terminate;
+    }
 
     long getJobNumber()
     {
