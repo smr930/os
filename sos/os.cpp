@@ -93,11 +93,14 @@ void Dskint (long &a, long p[])
 {
  // Disk interrupt.
  // At call: p [5] = current time
- int ioJobIndex = findJob(ioQueue.top());
+ int ioJobIndex = findJob(ioQueue.front());
 	JOBTABLE[ioJobIndex].setIsDoingIO(false);
 	JOBTABLE[ioJobIndex].setIORequest(JOBTABLE[ioJobIndex].getIORequest() - 1);
 	ioQueue.pop();
-	siodisk(ioQueue.top());
+	//send next job from io queue to disk
+	ioJobIndex = ioQueue.front();
+	JOBTABLE[ioJobIndex].setIsDoingIO(true);
+	siodisk(ioQueue.front()); //call siodisk to swap job to disk
 }
 
 void Drmint (long &a, long p[])
@@ -243,5 +246,10 @@ void dispatcher(Job *nextJob, int timequantum)
     p[2] = nextJob->getAddress();
     p[3] = nextJob->getJobSize();
     p[4] = timequantum;
+}
+
+void requestIO(){
+    JOBTABLE[currJobNumber].setIORequest(JOBTABLE[currJobNumber].getIORequest() + 1);
+    ioQueue.push(currJobNumber);
 }
 
