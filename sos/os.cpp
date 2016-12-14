@@ -14,7 +14,7 @@ std::map<int, int> FREESPACETABLE; // address and size pair
 std::queue<Job *> readyq; //ready queue points to PCBs
 
 
-void siodisk(int jobnum);
+void siodisk(long jobnum);
 void initFST();
 void addJobToJobtable (long jobNumber, long priority, long jobSize, long maxCpuTime, long currTime);
 void printJobtable();
@@ -88,17 +88,31 @@ void addJobtoJobTable (int jobnum, int priority, int jobsize, int maxCPUtime, in
 }
 
 
+
 void Dskint (long &a, long p[])
 {
  // Disk interrupt.
  // At call: p [5] = current time
+ int ioJobIndex = findJob(ioQueue.top());
+	JOBTABLE[ioJobIndex].setIsDoingIO(false);
+	JOBTABLE[ioJobIndex].setIORequest(JOBTABLE[ioJobIndex].getIORequest() - 1);
+	ioQueue.pop();
+	siodisk(ioQueue.top());
 }
 
 void Drmint (long &a, long p[])
 {
+    bool mem;
  // Drum interrupt.
  // At call: p [5] = current time
-
+    int jobIndex = findJob(currJobNum);
+        mem = JOBTABLE[jobIndex]->isInMemory;
+        JOBTABLE[jobIndex]->setInMemory(!mem);
+}
+    if(mem == true)
+        readyq.push(JOBTABLE[jobIndex]);
+    swapper(JOBTABLE[jobIndex]->getJobNumber);
+    scheduler();
 }
 
 void Tro (long &a, long p[])
