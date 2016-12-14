@@ -17,6 +17,7 @@ class Job
 	bool inMemory;
 	bool running;
     bool terminated;
+    bool isDoingIO;
 
   public:
     //default constructor
@@ -36,6 +37,7 @@ class Job
         inMemory = false;
         running = false;
         terminated = false;
+        isDoingIO = false;
 
     }
 
@@ -54,7 +56,8 @@ class Job
     this.blocked = false;
 	this.inMemory = false;
 	this.running = false;
-    this.terminated false;
+    this.terminated = false;
+    this.isDoingIO = false;
     }
 
     long getJobNumber()
@@ -185,6 +188,14 @@ class Job
     void setTerminated (bool n)
     {
         terminated = n;
+    }
+
+    bool getIsDoingIO(){
+        return isDoingIO;
+    }
+
+    void setIsDoingIO(bool n){
+        isDoinIO = n;
     }
 
 
