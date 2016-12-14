@@ -18,6 +18,7 @@ class Job
 	bool running;
     bool terminated;
     bool set_to_terminate;
+    bool isDoingIO;
 
   public:
     //default constructor: used only for dummy pointers
@@ -38,6 +39,7 @@ class Job
         running = false;
         terminated = false;
         set_to_terminate = false;
+        isDoingIO = false;
 
     }
 
@@ -58,6 +60,7 @@ class Job
         running = false;
         terminated = false;
         set_to_terminate = false;
+        isDoingIO = false;
     }
 
     void setset_to_terminate(bool status)
@@ -65,7 +68,7 @@ class Job
          set_to_terminate = status;
     }
 
-    void getset_to_terminate(bool status)
+    bool getset_to_terminate(bool status)
     {
         return set_to_terminate;
     }
@@ -130,7 +133,7 @@ class Job
         timeArrived = n;
     }
 
-        long getIORequest()
+    long getIORequest()
     {
         return ioRequest;
     }
@@ -198,6 +201,14 @@ class Job
     void setTerminated (bool n)
     {
         terminated = n;
+    }
+
+    bool getIsDoingIO(){
+        return isDoingIO;
+    }
+
+    void setIsDoingIO(bool n){
+        isDoingIO = n;
     }
 
 
