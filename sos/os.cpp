@@ -3,16 +3,18 @@
 #include <vector>
 #include <map>
 #include <queue>
+#include <stack>
 #include "Job.h"
+#include <stdlib.h> // defines EXIT_FAILURE
 
 using namespace std;
 
 
 // Data structures and global variables
 std::vector<Job> JOBTABLE;
-std::map<int, int> FREESPACETABLE; // address and size pair
-std::queue<int> readyq; //ready queue points to PCBs
-std::queue<int*> ioQueue;
+std::map<long, long> FREESPACETABLE; // address and size pair
+std::queue<long> readyq; //ready queue points to PCBs
+std::queue<long> ioQueue;
 
 
 void siodisk(int jobnum);
@@ -23,29 +25,41 @@ void printFST();
 void swapper(long jobNumber);
 
 //prototypes
-void addJobtoJobTable (long& , long& , long& , long& , long& );
+void addJobtoJobTable (long , long , long , long , long );
 void scheduler(void);
 int findJob(long);
 void addJobToFST(long);
-//Job* makePtrtoJob(Job&);
-Job& makePtrtoJob(Job& job);
-void clearSpace (int ,int );
-void clearSpace (int );
+void clearSpace (long, long);
+void clearSpace (long);
+void clear_from_readyq(long);
+int findFreeSpace(long);
+void block(void);
+void requestIO(void);
+void dispatcher(long , int );
+
+/*
+holds the job currently running or job which was just running
+used in terminate service call
+*/
+long curr_job_num;
+//long a;
+//long p[5];
+
+/*
+Channel commands siodisk and siodrum are made available to you by the simulator.
+siodisk has one argument: job number, of type int and passed by value.
+siodrum has four arguments, all of type int and passed by value:
+first argument is job number;
+second argument is job size;
+third argument is starting core address;
+fourth argument is interpreted as follows:
+1 => move from core (memory) to drum
+0 => move from drum to core (memory)
+*/
+void siodrum(long jobnum, long jobsize, long coreaddress, long direction);
 
 
-void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
- // Channel commands siodisk and siodrum are made available to you by the simulator.
- // siodisk has one argument: job number, of type int and passed by value.
- // siodrum has four arguments, all of type int and passed by value:
- // first argument is job number;
- // second argument is job size;
- // third argument is starting core address;
- // fourth argument is interpreted as follows:
- // 1 => move from core (memory) to drum
- // 0 => move from drum to core (memory)
 
-
-}
 
 void ontrace(); // called without arguments
 void offtrace(); // called without arguments
@@ -63,6 +77,7 @@ void startup()
  // Called once at start of the simulation.
     ontrace();
     initFST();
+    curr_job_num = -1;
 
 
 }
@@ -81,9 +96,10 @@ void Crint (long &a, long p[])
  // p [4] = max CPU time allowed for job
  // p [5] = current time
 
-     long jobnum = p[1];
-     addJobtoJobTable(jobnum , p[2], p[3],p[4], p[5]);
-     swapper(jobnum);
+     //long& jobnum = p[1];
+     cout << "in crint, job num = " + p[1] << endl;
+     addJobtoJobTable(p[1] , p[2], p[3],p[4], p[5]);
+     swapper(p[1]);
      scheduler();
      return;
 
@@ -93,6 +109,7 @@ void Crint (long &a, long p[])
 // interrupts (Drmint), and selects which job currently on the drum should be swapped into memory.
 void swapper(long jobNumber)
 {
+    cout << "in swapper, job num = " + jobNumber << endl;
     int jobLocation = findJob(jobNumber);
     int direction = JOBTABLE[jobLocation].getDirection();
 
@@ -100,8 +117,7 @@ void swapper(long jobNumber)
     if (direction == 0)
     {
         addJobToFST(jobNumber);
-        Job *newJobinMem = makePtrtoJob(JOBTABLE[jobLocation]); //push ptr to job table entry onto ready queue
-        readyq.push (newJobinMem);
+        readyq.push (JOBTABLE[jobLocation].getJobNumber() );
     }
 
     // direction = 1, swap from memory to drum
@@ -129,33 +145,26 @@ void swapper(long jobNumber)
 1 of 2 helper function for swapper
 clears range
 */
-void clearSpace (int startIndex, int endIndex)
+void clearSpace (long startIndex, long endIndex)
 {
-    for (int i = startIndex; i < endIndex; i++)
+    for (long i = startIndex; i < endIndex; i++)
     {
         clearSpace(i);
     }
 }
 
+
 /*
 1 of 2 clearSpace helper functions for swapper
-clears specific index
+index represents the starting address!
 */
-void clearSpace (int index)
+void clearSpace (long index)
 {
     FREESPACETABLE[index] = 0;
 
 }
 
-/*
-helper function for swapper
-returns pointer to job
-*/
-Job& makePtrtoJob(Job& job)
-{
-    Job *jobPtr = job;
-    return jobPtr;
-}
+
 
 
 /*
@@ -180,7 +189,7 @@ void addJobToFST(long jobNumber)
 
 
 /*
-helper function for swapper
+helper function for swapper & terminate service call
 returns index of job in JOBTABLE
 */
 int findJob(long jobNum)
@@ -198,10 +207,11 @@ int findJob(long jobNum)
 /*
 function adds a new job into the JOBTABLE
 */
-void addJobtoJobTable (long& jobnum, long& priority, long& jobsize, long& maxCPUtime, long& currtime)
+void addJobtoJobTable (long jobnum, long priority, long jobsize, long maxCPUtime, long currtime)
 {
-    Job newJobTableEntry = new Job(jobnum, jobsize, maxCPUtime, currtime, priority);
-    JOBTABLE.push_back(newJobTableEntry); //add job entry to end of list
+    cout << "in add job to job table, job num = " + jobnum << endl;
+    Job newjob(jobnum, jobsize, maxCPUtime, currtime, priority);
+    JOBTABLE.push_back(newjob); //add job entry to end of list
     return;
 }
 
@@ -247,32 +257,80 @@ void Svc (long &a, long p[])
 }
 
 /*
+called when the last running job requests service
+sets block flag so that job may not run nor be terminated until all IO requests are met
+*/
+void block()
+{
+    int job_idx = findJob(curr_job_num);
+    JOBTABLE[job_idx].setBlocked(true);
+    return;
+}
+
+
+
+/*
+a job requests to be terminated if it has exceeded its max CPU time or an error occurred
 head of ready queue represents the job that asked to be terminated
 */
 void terminate()
 {
-     int currJob_num = readyq.top();
-     Job currJob = findJobinJOBTABLE(currJob_num);
-     if(currJob.IsBlocked()){
-          currJob.setset_to_terminate(true);\
+     int job_idx = findJob(curr_job_num);
+     //set flag to terminate once unblocked
+     if(JOBTABLE[job_idx].isBlocked()){
+          JOBTABLE[job_idx].setset_to_terminate(true);
           return;
      }
-     clearSpace
-
-
-
+     //if exceeded CPU time, TODO
+     //if error occurred, TODO
+     clearSpace(JOBTABLE[job_idx].getAddress());
+     clear_from_readyq(job_idx);
 }
 
-Job findJobinJOBTABLE(int jobnum)
+
+void clear_from_readyq(long job_num)
 {
-    for(int i = 0; i < JOBTABLE.size(); i++){
-        if(JOBTABLE[i].getJobNumber() == jobnum)
-            return JOBTABLE[i];
+    if(readyq.empty()){
+        cout << "ERROR, EMPTY Q: cannot clear entry from readyq" << endl;
+        exit(EXIT_FAILURE);
     }
-    cout << "ERROR FINDING JOB IN JOBTABLE";
-    return;
 
+    //search for element and save the elements you pass through
+    std::stack<long> tmp;
+    long curr = readyq.front();
+    while((!readyq.empty()) && curr != job_num){
+        readyq.pop();
+        tmp.push(curr);
+        curr = readyq.front();
+    }
+
+    //if got to this point either found element OR queue has been emptied
+    if(readyq.empty()){
+        cout << "ERROR, EMPTY Q: cannot clear entry from readyq" << endl;
+        exit(-1);
+    }
+
+    readyq.pop(); //remove job from readyq!
+
+    while(!tmp.empty()){
+        curr = tmp.top();
+        tmp.pop();
+        readyq.push(curr);
+    }
+    return;
 }
+
+
+//Job findJobinJOBTABLE(int jobnum)
+//{
+//    for(int i = 0; i < JOBTABLE.size(); i++){
+//        if(JOBTABLE[i].getJobNumber() == jobnum)
+//            return JOBTABLE[i];
+//    }
+//    cout << "ERROR FINDING JOB IN JOBTABLE";
+//    return;
+//
+//}
 
 
 
@@ -309,7 +367,7 @@ void printFST()
 {
     cout << " -- FST -- " << endl;
     cout << "Addr  Size" << endl;
-    map<int, int>::iterator fstIter;
+    map<long, long>::iterator fstIter;
 
     for (fstIter = FREESPACETABLE.begin(); fstIter != FREESPACETABLE.end(); fstIter++)
     {
@@ -318,9 +376,9 @@ void printFST()
 }
 
 // Find space based on job size
-int findFreeSpace(int jobSize)
+int findFreeSpace(long jobSize)
 {
-    map<int, int>::iterator fstIter;
+    map<long, long>::iterator fstIter;
 
     for (fstIter = FREESPACETABLE.begin(); fstIter != FREESPACETABLE.end(); fstIter++)
     {
@@ -334,11 +392,6 @@ int findFreeSpace(int jobSize)
     return -1;
 }
 
-void clearSpace(int index)
-{
-    FREESPACETABLE[index] = 0;
-
-}
 
 
 /*
@@ -348,32 +401,51 @@ and sets time quantum
 */
 void scheduler()
 {
+    //if there is no job to run
+    if(readyq.empty()){
+         return;
+    }
+
     int timequantum = 2;
-    Job *dummyPtr = new Job();
-    Job *nextJobToRun = dummyPtr;
-
-    //keep looking for jobs to run that are not blocked
-    while(!readyq.empty()){
-        readyq.top();
-        while(nextJobToRun[1] == 0){
-              readyq.pop();
-              readyq.push();
-              nextJobToRun = readyq.top();
-        }
+    long curr_q_entry = readyq.front();
+    std::stack<long> tmp;
+    /*
+    look for first job that is not blocked
+    store the elements you go through to put back after search
+    */
+    int job_idx = findJob(curr_q_entry);
+    while((!readyq.empty()) && (JOBTABLE[job_idx].isBlocked() || JOBTABLE[job_idx].getIsDoingIO() ) ) {
+         tmp.push(curr_q_entry);
+         readyq.pop();
+         curr_q_entry = readyq.front();
     }
-    //meets this condition if queue is empty or all jobs are blocked
-    if(nextJobToRun == dummyPtr){
-          *a = 1; //no job to run
-    } else {
-         dispatcher(nextJobToRun, timequantum );
+    //return after all jobs are put into original place given all jobs are blocked
+    if(readyq.empty()){
+         while(!tmp.empty()){
+            readyq.push(tmp.top());
+            tmp.pop();
+         }
+         return;
     }
+    //only gets to this point if there is a job to run
+    dispatcher(timequantum, job_idx );
+    return;
 }
-
-void dispatcher(Job *nextJob, int timequantum)
+/*
+dispatcher receives time quantum
+and the index used to access the next running job's info in the JOBTABLE
+*/
+void dispatcher(long timequantum, int job_idx)
 {
-    *a = 2; //run a job
-    p[2] = nextJob->getAddress();
-    p[3] = nextJob->getJobSize();
+    a = 2; //run a job
+    p[2] = JOBTABLE[job_idx].getAddress();
+    p[3] = JOBTABLE[job_idx].getJobSize();
     p[4] = timequantum;
+    return;
 }
 
+void requestIO(){
+    JOBTABLE[curr_job_num].setIORequest(JOBTABLE[curr_job_num].getIORequest() + 1);
+    ioQueue.push(curr_job_num);
+    return;
+}
