@@ -3,6 +3,7 @@
 #include <vector>
 #include <map>
 #include <queue>
+#include <stack>
 #include "Job.h"
 
 using namespace std;
@@ -10,22 +11,25 @@ using namespace std;
 // Data structures and global variables
 std::vector<Job> JOBTABLE;
 std::map<int, int> FREESPACETABLE; // address and size pair
-std::queue<int*> readyq;
-std::queue<int*> ioQueue;
+std::queue<long> readyq;
+std::queue<long> ioQueue;
 
 void siodisk(int jobnum);
+void siodrum(long jobnum, long jobsize, long coreaddress, long direction);
 void initFST();
 void addJobToJobtable (long jobNumber, long priority, long jobSize, long maxCpuTime, long currTime);
+void removeJobFromJobTable (long jobNumber);
 void addJobToFST(long jobNumber);
 void printJobtable();
 void printFST();
+void printQueue(std::queue<long> myQueue, string name);
 int  findFreeSpace(int jobSize);
 void clearSpace(int index);
 void clearSpace(int startIndex, int endIndex);
 int  findJob(long jobNum);
 void swapper(long jobNumber);
 
-void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
+//void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
  // Channel commands siodisk and siodrum are made available to you by the simulator.
  // siodisk has one argument: job number, of type int and passed by value.
  // siodrum has four arguments, all of type int and passed by value:
@@ -35,9 +39,7 @@ void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
  // fourth argument is interpreted as follows:
  // 1 => move from core (memory) to drum
  // 0 => move from drum to core (memory)
-
-
-}
+//}
 
 void ontrace(); // called without arguments
 void offtrace(); // called without arguments
@@ -126,7 +128,11 @@ void addJobToJobtable (long jobNumber, long priority, long jobSize, long maxCpuT
     JOBTABLE.push_back(newJob);
 }
 
-
+void removeJobFromJobTable (long jobNumber)
+{
+	long jobLocation = findJob(jobNumber);
+	JOBTABLE.erase(JOBTABLE.begin() + jobLocation);
+}
 
 void printJobtable()
 {
@@ -157,11 +163,34 @@ void printFST()
     }
 }
 
+void printQueue(std::queue<long> myQueue, string name)
+{
+    cout << "\n -- " << name << " --" << endl;
+    std::queue<long> tempQ = myQueue;
+    long tempJob;
+    long jobCount = 0;
+
+    if (tempQ.empty())
+    {
+        cout << "The queue is empty\n" << endl;
+        return;
+    }
+
+    while (!tempQ.empty())
+    {
+        tempJob = tempQ.front();
+        cout << "\tJob Num: " << tempJob << endl;
+        tempQ.pop();
+        jobCount++;
+    }
+    cout << "There are " << jobCount << " job in the queue!\n" << endl;
+}
+
 // Find space based on job size
 int findFreeSpace(int jobSize)
 {
     int contigous = 0;
-    int index;
+    int index = 0;
     bool foundIndex = false;
     map<int, int>::iterator fstIter;
 
@@ -243,24 +272,34 @@ void swapper(long jobNumber)
     if (direction == 0)
     {
         addJobToFST(jobNumber);
-        readyq.push (new int(JOBTABLE[jobLocation].getJobNumber()) );
+        readyq.push (JOBTABLE[jobLocation].getJobNumber());
+        //printQueue(readyq, "READY QUEUE");
+        siodrum(JOBTABLE[jobLocation].getJobNumber(), JOBTABLE[jobLocation].getJobSize(),
+                     JOBTABLE[jobLocation].getAddress(), 0);
     }
 
     // direction = 1, swap from memory to drum
     else if (direction == 1)
     {
-        if (JOBTABLE[jobLocation].getIORequest() != true || JOBTABLE[jobLocation].isLatched() != true)
+        if (JOBTABLE[jobLocation].is_DoingIO() != true || JOBTABLE[jobLocation].isLatched() != true)
         {
             if (!readyq.empty())
-                readyq.pop();
+            {
+                if (readyq.front() == jobNumber)
+                    readyq.pop();
+            }
 
             if (!ioQueue.empty())
-                ioQueue.pop();
+            {
+                if (ioQueue.front() == jobNumber)
+                    ioQueue.pop();
+            }
 
 
             siodrum(JOBTABLE[jobLocation].getJobNumber(), JOBTABLE[jobLocation].getJobSize(),
                      JOBTABLE[jobLocation].getAddress(), 1);
             JOBTABLE[jobLocation].setInMemory(false);
+            removeJobFromJobTable (jobNumber);
             clearSpace(jobLocation);
         }
     }

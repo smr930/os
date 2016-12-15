@@ -17,6 +17,8 @@ class Job
 	bool inMemory;
 	bool running;
     bool terminated;
+    bool set_to_terminate;
+    bool isDoingIO;
 
   public:
     //default constructor
@@ -37,6 +39,8 @@ class Job
         inMemory = false;
         running = false;
         terminated = false;
+        set_to_terminate = false;
+        isDoingIO = false;
 
     }
 
@@ -57,6 +61,8 @@ class Job
         this->inMemory = false;
         this->running = false;
         this->terminated = false;
+        this->set_to_terminate = false;
+        this->isDoingIO = false;
     }
 
     long getJobNumber()
@@ -189,6 +195,25 @@ class Job
         terminated = n;
     }
 
+    bool is_SetToTerminated()
+    {
+        return set_to_terminate;
+    }
+
+    void set_setToTerminated (bool n)
+    {
+        set_to_terminate = n;
+    }
+
+    bool is_DoingIO()
+    {
+        return isDoingIO;
+    }
+
+    void set_isDoingIO (bool n)
+    {
+        isDoingIO = n;
+    }
 
 };
 
