@@ -200,18 +200,16 @@ class Job
         return set_to_terminate;
     }
 
-    void set_setToTerminated (bool n)
+    void setset_to_terminate (bool n)
     {
         set_to_terminate = n;
     }
 
-    bool is_DoingIO()
-    {
+    bool getIsDoingIO(){
         return isDoingIO;
     }
 
-    void set_isDoingIO (bool n)
-    {
+    void setIsDoingIO(bool n){
         isDoingIO = n;
     }
 
