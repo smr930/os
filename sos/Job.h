@@ -21,7 +21,7 @@ class Job
     bool isDoingIO;
 
   public:
-    //default constructor: used only for dummy pointers
+    //default constructor
     Job()
     {
         jobNumber = -1;
@@ -29,6 +29,7 @@ class Job
         //FST memory starts at 0 and all jobs start outside of memory
         address = -1;
         maxCPUtime = 0;
+        direction = 0;
         timeArrived = 0;
         ioRequest = 0;
         priority = 0;
@@ -44,33 +45,24 @@ class Job
     }
 
 
-    Job (long& jobNumber, long& jobSize, long& maxCPUtime, long& timeArrived, long& priority)
+    Job (long jobNumber, long jobSize, long maxCPUtime, long timeArrived, long priority)
     {
-        jobNumber = jobNumber;
-        jobSize = jobSize;
-        address = -1;
-        maxCPUtime = maxCPUtime;
-        timeArrived = timeArrived;
-        ioRequest = 0; //start with no I/O requests
-        priority = priority;
+        this->jobNumber = jobNumber;
+        this->jobSize = jobSize;
+        this->address = -1;
+        this->maxCPUtime = maxCPUtime;
+        this->timeArrived = timeArrived;
+        this->ioRequest = 0; //start with no I/O requests
+        this->priority = priority;
+        this->direction = 0;
 
-        latched = false;
-        blocked = false;
-        inMemory = false;
-        running = false;
-        terminated = false;
-        set_to_terminate = false;
-        isDoingIO = false;
-    }
-
-    void setset_to_terminate(bool status)
-    {
-         set_to_terminate = status;
-    }
-
-    bool getset_to_terminate(bool status)
-    {
-        return set_to_terminate;
+        this->latched = false;
+        this->blocked = false;
+        this->inMemory = false;
+        this->running = false;
+        this->terminated = false;
+        this->set_to_terminate = false;
+        this->isDoingIO = false;
     }
 
     long getJobNumber()
@@ -203,6 +195,16 @@ class Job
         terminated = n;
     }
 
+    bool is_SetToTerminated()
+    {
+        return set_to_terminate;
+    }
+
+    void setset_to_terminate (bool n)
+    {
+        set_to_terminate = n;
+    }
+
     bool getIsDoingIO(){
         return isDoingIO;
     }
@@ -210,7 +212,6 @@ class Job
     void setIsDoingIO(bool n){
         isDoingIO = n;
     }
-
 
 };
 
