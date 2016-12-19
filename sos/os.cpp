@@ -30,19 +30,24 @@ void clearSpace(int index);
 void clearSpace(int startIndex, int endIndex);
 void clear_from_readyq(long);
 int  findJob(long jobNum);
-void swapper(long jobNumber);
+void swapper();
 void scheduler(void);
 void block(void);
 void requestIO(void);
-void dispatcher(long , int , long &, long[]);
+void dispatcher(long &, long []);
 
 /*
 holds the job currently running or job which was just running
 used in terminate service call
 */
 long curr_job_num;
+/*
+represents the job currently swapping or just swapped
+*/
+long curr_job_moving;
 long a;
 long p[6];
+int count_swaps;
 
 //void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
  // Channel commands siodisk and siodrum are made available to you by the simulator.
@@ -73,6 +78,7 @@ void startup()
     ontrace();
     initFST();
     curr_job_num = -1;
+    count_swaps = 0;
 }
 
 // INTERRUPT HANDLERS
@@ -96,8 +102,9 @@ void Crint (long &a, long p[])
     cout << "max cpu time = " << p[4] << endl;
     cout << "curr time = " << p[5] << endl;
     addJobToJobtable(p[1], p[2], p[3], p[4], p[5]);
-    swapper(p[1]);
+    swapper();
     scheduler();
+    return;
 
     //printJobtable();
     //printFST();
@@ -117,6 +124,8 @@ void Dskint (long &a, long p[])
     ioJobIndex = ioQueue.front();
     JOBTABLE[ioJobIndex].setIsDoingIO(true);
     siodisk(ioQueue.front()); //call siodisk to swap job to disk
+    swapper();
+    scheduler();
 }
 
 void Drmint (long &a, long p[])
@@ -124,16 +133,30 @@ void Drmint (long &a, long p[])
     // Drum interrupt.
     // At call: p [5] = current time
     cout << endl << "in drmint" << endl;
-    bool mem;
-    int jobIndex = findJob(curr_job_num);
-    mem = JOBTABLE[jobIndex].isInMemory();
-    JOBTABLE[jobIndex].setInMemory(!mem);
+    cout << "bookmarking job num " << curr_job_moving << endl;
+    //bool mem;
+    int jobIndex = findJob(curr_job_moving);
+    //mem = JOBTABLE[jobIndex].isInMemory();
+    JOBTABLE[jobIndex].setInMemory(!JOBTABLE[jobIndex].isInMemory());
+    //if moved from core to drum
+    if(!(JOBTABLE[jobIndex].isInMemory()))
+    {
+         removeJobFromJobTable (JOBTABLE[jobIndex].getJobNumber());
+         clearSpace(jobIndex);
+         cout << "clearing job num " << curr_job_moving << " from readyq" << endl;
+         clear_from_readyq(curr_job_moving);
+         JOBTABLE[jobIndex].setDirection(0);
 
-    if(mem == true)
+    } else if(JOBTABLE[jobIndex].isInMemory())
+    {
+        cout << "pushing onto readyq" << endl;
         readyq.push(JOBTABLE[jobIndex].getJobNumber());
+        JOBTABLE[jobIndex].setDirection(1);
 
-    ///swapper(JOBTABLE[jobIndex].getJobNumber()); // Gives error: Job in already in core
+    }
+    swapper(); // Gives error: Job in already in core
     scheduler();
+    return;
 }
 
 void Tro (long &a, long p[])
@@ -142,6 +165,8 @@ void Tro (long &a, long p[])
     // At call: p [5] = current time
     cout << endl << "in Tro" << endl;
     terminate();
+    swapper();
+    scheduler();
 
 }
 void Svc (long &a, long p[])
@@ -164,8 +189,9 @@ void Svc (long &a, long p[])
           default: cout << "there was error with service request\n";
                   break;
       }
-     return;
-
+      swapper();
+      scheduler();
+      return;
 }
 
 /*
@@ -389,12 +415,51 @@ void clearSpace (int startIndex, int endIndex)
 
 // Handles requests for swapping, starts a drum swap (using SOS function Siodrum), handles drum
 // interrupts (Drmint), and selects which job currently on the drum should be swapped into memory.
-void swapper(long jobNumber)
+void swapper()
 {
     cout << endl << "now in swapper" << endl;
-    int jobLocation = findJob(jobNumber);
+    //count_swaps++;
+    //if(count_swaps > 1){
+        for(int i = 0; i < JOBTABLE.size(); i++){
+            //find first job on the drum and see if can find space
+            if(JOBTABLE[i].getDirection() == 0){
+                bool foundSpace = (findFreeSpace(JOBTABLE[i].getJobSize()) != -1 ? true : false);
+                if (foundSpace){
+                     cout << "found space in memory" << endl;
+                     addJobToFST(JOBTABLE[i].getJobNumber());
+                     //curr_job_num = jobNumber;
+                     //readyq.push (JOBTABLE[i].getJobNumber());
+                     //JOBTABLE[i].setInMemory(true);
+                     //printQueue(readyq, "READY QUEUE");
+                     curr_job_moving = JOBTABLE[i].getJobNumber();
+                     siodrum(JOBTABLE[i].getJobNumber(), JOBTABLE[i].getJobSize(),
+                     JOBTABLE[i].getAddress(), 0);
+                }
+                return;
+           } else { //else is in core
+                  if(JOBTABLE[i].getIORequest() > 0){
+                       return;
+                  }
+                  /*
+                  keep in core to finish running if there is no other job that wants to run
+                  */
+                  if(readyq.size() > 1){ // then move from core
+                        //clear_from_readyq(JOBTABLE[i].getJobNumber());
+                        curr_job_moving = JOBTABLE[i].getJobNumber();
+                        siodrum(JOBTABLE[i].getJobNumber(), JOBTABLE[i].getJobSize(),
+                                JOBTABLE[i].getAddress(), 1);
+                        //JOBTABLE[i].setInMemory(false);
+
+                  }
+
+           }
+    }
+}
+
+/*
+ int jobLocation = findJob(jobNumber);
     int direction = JOBTABLE[jobLocation].getDirection();
-    bool foundSpace = (findFreeSpace(JOBTABLE[jobLocation].getJobSize()) != -1 ? true : false);
+
 
     // direction = 0, swap from drum to memory
     if (direction == 0)
@@ -403,14 +468,16 @@ void swapper(long jobNumber)
         {
             cout << "found space in memory" << endl;
             addJobToFST(jobNumber);
-            curr_job_num = jobNumber;
+            //curr_job_num = jobNumber;
             readyq.push (JOBTABLE[jobLocation].getJobNumber());
             JOBTABLE[jobLocation].setInMemory(true);
             //printQueue(readyq, "READY QUEUE");
+            curr_job_moving = jobNumber;
             siodrum(JOBTABLE[jobLocation].getJobNumber(), JOBTABLE[jobLocation].getJobSize(),
                          JOBTABLE[jobLocation].getAddress(), 0);
         }
         // a job can't be swapped to memory because there is no space in FST
+        //job remains on the drum
         return;
     }
 
@@ -425,14 +492,12 @@ void swapper(long jobNumber)
                     readyq.pop();
             }
 
-            siodrum(JOBTABLE[jobLocation].getJobNumber(), JOBTABLE[jobLocation].getJobSize(),
-                     JOBTABLE[jobLocation].getAddress(), 1);
-            JOBTABLE[jobLocation].setInMemory(false);
-            removeJobFromJobTable (jobNumber);
-            clearSpace(jobLocation);
         }
     }
 }
+
+*/
+
 
 /*
 scheduler uses round robin implementation:
@@ -441,7 +506,11 @@ and sets time quantum
 */
 void scheduler()
 {
+
     cout << endl << "now in scheduler" << endl;
+    cout << "a = " << a << endl;
+
+
     //if there is no job to run
     if(readyq.empty()){
          cout << "EMPTY READYQ: there is no job to run"  << endl;
@@ -456,11 +525,13 @@ void scheduler()
     store the elements you go through to put back after search
     */
     int job_idx = findJob(curr_q_entry);
-    while((!readyq.empty()) && (JOBTABLE[job_idx].isBlocked() || JOBTABLE[job_idx].getIsDoingIO() ) ) {
+    while((!readyq.empty()) && (JOBTABLE[job_idx].isInMemory() == false) && (JOBTABLE[job_idx].isBlocked() || JOBTABLE[job_idx].getIsDoingIO() ) ) {
          tmp.push(curr_q_entry);
          readyq.pop();
          curr_q_entry = readyq.front();
+         job_idx++;
     }
+    cout << "scheduler, job to run= " << JOBTABLE[job_idx] << endl;
     //return after all jobs are put into original place given all jobs are blocked
     if(readyq.empty()){
          while(!tmp.empty()){
@@ -470,7 +541,17 @@ void scheduler()
          return;
     }
     //only gets to this point if there is a job to run
-    dispatcher(timequantum, job_idx, a, p);
+    //if(a = 1){  //if the CPU is idle, run job
+        a = 2; //run a job
+        cout << "a now equal to " << a << endl;
+        p[2] = JOBTABLE[job_idx].getAddress();
+        cout << "job addr = " << p[2] << endl;
+        p[3] = JOBTABLE[job_idx].getJobSize();
+        cout << "job size = " << p[3] << endl;
+        p[4] = timequantum;
+        cout << "time quantum = " << p[4] << endl;
+   // }
+    dispatcher(a, p);
     return;
 }
 
@@ -478,19 +559,13 @@ void scheduler()
 dispatcher receives time quantum
 and the index used to access the next running job's info in the JOBTABLE
 */
-void dispatcher(long timequantum, int job_idx, long &a, long p[])
+void dispatcher(long &a, long p[])
 {
     cout << "in dispatcher\n" << "a = " << a << endl;
+    a =2;
 
     // a and p needs to be passed in
-    a = 2; //run a job
-    cout << "a now equal to " << a << endl;
-    p[2] = JOBTABLE[job_idx].getAddress();
-    cout << "job addr = " << p[2] << endl;
-    p[3] = JOBTABLE[job_idx].getJobSize();
-    cout << "job size = " << p[3] << endl;
-    p[4] = timequantum;
-    cout << "time quantum = " << p[4] << endl;
+
     return;
 }
 
