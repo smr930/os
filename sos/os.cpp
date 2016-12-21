@@ -49,6 +49,10 @@ long curr_job_moving;
 long* aRef;
 long* pRef;
 int count_swaps;
+/*
+is updated by every interrupt handler
+*/
+long curr_time;
 
 //void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
  // Channel commands siodisk and siodrum are made available to you by the simulator.
@@ -81,6 +85,7 @@ void startup()
     curr_job_num = -1;
     count_swaps = 0;
     curr_job_doingIO = -1;
+    curr_time = 0;
 }
 
 // INTERRUPT HANDLERS
@@ -108,6 +113,7 @@ void Crint (long &a, long p[])
     cout << "job size = " << p[3] << endl;
     cout << "max cpu time = " << p[4] << endl;
     cout << "curr time = " << p[5] << endl;
+    curr_time = pRef[5];
     addJobToJobtable(p[1], p[2], p[3], p[4], p[5]);
     swapper();
     scheduler();
@@ -124,6 +130,9 @@ void Dskint (long &a, long p[])
     cout << endl << "now in dkint" << endl;
     cout << "job num " << ioQueue.front() << "just finished 1 IO request" << endl;
     cout << "curr_job_doingIO = " << curr_job_doingIO << endl;
+
+    curr_time = pRef[5];
+    cout << "the current time is " << curr_time << endl;
     int ioJobIndex = findJob(ioQueue.front());
     JOBTABLE[ioJobIndex].setIORequest(JOBTABLE[ioJobIndex].getIORequest() - 1);
     cout << JOBTABLE[ioJobIndex].getIORequest() << " IO requests left" << endl;
@@ -158,6 +167,9 @@ void Drmint (long &a, long p[])
     // At call: p [5] = current time
     cout << endl << "in drmint" << endl;
     cout << "bookmarking job num " << curr_job_moving << endl;
+
+    curr_time = pRef[5];
+    cout << "the current time is " << curr_time << endl;
     //bool mem;
     int jobIndex = findJob(curr_job_moving);
     //mem = JOBTABLE[jobIndex].isInMemory();
@@ -188,7 +200,25 @@ void Tro (long &a, long p[])
     // Timer-Run-Out.
     // At call: p [5] = current time
     cout << endl << "in Tro" << endl;
-    terminateJob();
+
+    curr_time = pRef[5];
+    cout << "the current time is " << curr_time << endl;
+
+    /*
+    bookkeep time spent in CPU
+    */
+    int index = findJob(curr_job_num);
+    JOBTABLE[index].time_in_CPU = curr_time - JOBTABLE[index].time_sent_to_CPU;
+
+    if(readyq.size() > 1 || JOBTABLE[index].time_in_CPU >= JOBTABLE[index].getmaxCPUtime()){
+         if(JOBTABLE[index].time_in_CPU >= JOBTABLE[index].getmaxCPUtime() ){
+            cout << "job num " << curr_job_num << " exceeded max cpu time so terminate" << endl;
+         }
+         cout << "readyq has others waiting so terminate job!" << endl;
+         terminateJob();
+    } else {
+         cout << "no other jobs set to run so don't terminate!" << endl;
+    }
     swapper();
     scheduler();
     return;
@@ -204,6 +234,16 @@ void Svc (long &a, long p[])
      // I/O requests are completed
       cout << endl << "in Svc" << endl;
       cout << "a = " << a << endl;
+
+      curr_time = pRef[5];
+      cout << "the current time is " << curr_time << endl;
+
+      /*
+        bookkeep time spent in CPU
+      */
+     int index = findJob(curr_job_num);
+     JOBTABLE[index].time_in_CPU = curr_time - JOBTABLE[index].time_sent_to_CPU;
+
       switch (a) {
           case 5: cout << "in svc switch: job requested to be terminated" << endl;
                   terminateJob();
@@ -228,9 +268,15 @@ void block()
 {
     cout << endl << "in block()" << endl;
     int job_idx = findJob(curr_job_num);
-    JOBTABLE[job_idx].setBlocked(true);
+
     cout << "job num " << curr_job_num << " has " << JOBTABLE[job_idx].getIORequest()
          << " IO requests and requested to be blocked" << endl;
+    if(JOBTABLE[job_idx].getIORequest() > 0){
+        cout << "now setting to blocked" << endl;
+        JOBTABLE[job_idx].setBlocked(true);
+    } else{
+         cout << "not enough IO requests to block!" << endl;
+    }
     return;
 }
 
@@ -529,7 +575,7 @@ void scheduler()
          curr_q_entry = copy.front();
          job_idx = findJob(curr_q_entry);
          cout << "now seeing if can run job num " << curr_q_entry << " at index " << job_idx << endl;
-         if(JOBTABLE[job_idx].isBlocked() == false && JOBTABLE[job_idx].isInMemory())
+         if(JOBTABLE[job_idx].isBlocked() == false && JOBTABLE[job_idx].isInMemory() && JOBTABLE[job_idx].time_in_CPU + timequantum <= JOBTABLE[job_idx].getmaxCPUtime())
               break;
          else{
               cout << "cannot run job num " << curr_q_entry << endl;
@@ -551,6 +597,24 @@ void scheduler()
     /if(a = 1){  //if the CPU is idle, run job
     */
     cout << "found job num " << JOBTABLE[job_idx].getJobNumber() << " to run" << endl;
+
+    cout << "timequantum = " << timequantum << " maxCPU time for job = " << JOBTABLE[job_idx].getmaxCPUtime() << endl;
+    if(JOBTABLE[job_idx].time_in_CPU + timequantum <= JOBTABLE[job_idx].getmaxCPUtime()){
+        cout << "time in CPU + timequantum = " << timequantum << " is less than or equal to maxCPU time = " << JOBTABLE[job_idx].getmaxCPUtime() << endl;
+        /*
+        timequantum = JOBTABLE[job_idx].getmaxCPUtime() - JOBTABLE[job_idx].time_in_CPU;
+        cout << "time quantum now = " << timequantum << endl;
+        if(timequantum <= 0){
+            cout << "time ran out on this job" << endl;
+            return;
+        }
+        */
+    }
+
+    ///set time you WOULD sent job to CPU
+    long old_time = JOBTABLE[job_idx].time_sent_to_CPU;
+    JOBTABLE[job_idx].time_sent_to_CPU = curr_time;
+
     *aRef = 2; //run a job
     cout << "a now equal to " << *aRef << endl;
     pRef[2] = JOBTABLE[job_idx].getAddress();
