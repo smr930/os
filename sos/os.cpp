@@ -5,7 +5,6 @@
 #include <queue>
 #include <stack>
 #include "Job.h"
-#include <stdlib.h> // defines EXIT_FAILURE
 
 using namespace std;
 
@@ -35,6 +34,7 @@ void scheduler(void);
 void block(void);
 void requestIO(void);
 void dispatcher();
+void terminateJob(void);
 
 /*
 holds the job currently running or job which was just running
@@ -134,7 +134,7 @@ void Dskint (long &a, long p[])
             JOBTABLE[ioJobIndex].setBlocked(false);
          }
          if(JOBTABLE[ioJobIndex].is_SetToTerminated()){
-            terminate();
+            terminateJob();
          }
     }
     //JOBTABLE[ioJobIndex].setIsDoingIO(false);
@@ -188,9 +188,10 @@ void Tro (long &a, long p[])
     // Timer-Run-Out.
     // At call: p [5] = current time
     cout << endl << "in Tro" << endl;
-    terminate();
+    terminateJob();
     swapper();
     scheduler();
+    return;
 
 }
 void Svc (long &a, long p[])
@@ -204,7 +205,8 @@ void Svc (long &a, long p[])
       cout << endl << "in Svc" << endl;
       cout << "a = " << a << endl;
       switch (a) {
-          case 5: terminate();
+          case 5: cout << "in svc switch: job requested to be terminated" << endl;
+                  terminateJob();
                   break;
           case 6: requestIO();
                   break;
@@ -236,10 +238,12 @@ void block()
 a job requests to be terminated if it has exceeded its max CPU time or an error occurred
 head of ready queue represents the job that asked to be terminated
 */
-void terminate()
+void terminateJob()
 {
-     cout << endl << "in terminate" << endl;
+     cout << endl << "in terminateJob" << endl;
      cout << "job num " << curr_job_num << " requested to be terminated" << endl;
+
+     cout << "size of readyq=" << readyq.size() << endl;
      int job_idx = findJob(curr_job_num);
      //set flag to terminate once unblocked
      if(JOBTABLE[job_idx].isBlocked()){
@@ -248,8 +252,9 @@ void terminate()
      }
      //if exceeded CPU time, TODO
      //if error occurred, TODO
+
      clearSpace(JOBTABLE[job_idx].getAddress());
-     clear_from_readyq(job_idx);
+     clear_from_readyq(curr_job_num);
      return;
 }
 
@@ -263,26 +268,34 @@ void clear_from_readyq(long job_num)
 
     //search for element and save the elements you pass through
     std::stack<long> tmp;
-    long curr = readyq.front();
-    while((!readyq.empty()) && curr != job_num){
-        readyq.pop();
-        tmp.push(curr);
+    long curr = -1;
+    cout << "curr before loop = " << curr << endl;
+    while(!readyq.empty()){
         curr = readyq.front();
+        cout << "curr is equal to readyq.front= " << curr << endl;
+        readyq.pop();
+        if(curr != job_num){
+             cout << "curr job num " << curr << " ! = " << job_num << endl;
+             tmp.push(curr);
+        } else{
+            cout << "curr job num " << curr << " == " << job_num << endl;
+        }
     }
 
     //if got to this point either found element OR queue has been emptied
+    /*
     if(readyq.empty()){
         cout << "ERROR, EMPTY Q: cannot clear entry from readyq" << endl;
-        exit(-1);
     }
+    */
 
-    readyq.pop(); //remove job from readyq!
 
     while(!tmp.empty()){
         curr = tmp.top();
-        tmp.pop();
         readyq.push(curr);
+        tmp.pop();
     }
+    printQueue(readyq, "readyq after removing an entry");
     return;
 }
 
@@ -496,6 +509,7 @@ void scheduler()
     //if there is no job to run
     if(readyq.empty()){
          cout << "EMPTY READYQ: there is no job to run"  << endl;
+         *aRef = 1; //set CPU idle
          return;
     }
 
