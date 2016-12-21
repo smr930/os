@@ -34,19 +34,20 @@ void swapper();
 void scheduler(void);
 void block(void);
 void requestIO(void);
-void dispatcher(long &, long []);
+void dispatcher();
 
 /*
 holds the job currently running or job which was just running
 used in terminate service call
 */
 long curr_job_num;
+long curr_job_doingIO;
 /*
 represents the job currently swapping or just swapped
 */
 long curr_job_moving;
-long a;
-long p[6];
+long* aRef;
+long* pRef;
 int count_swaps;
 
 //void siodrum(int jobnum, int jobsize, int coreaddress, int direction){
@@ -79,6 +80,7 @@ void startup()
     initFST();
     curr_job_num = -1;
     count_swaps = 0;
+    curr_job_doingIO = -1;
 }
 
 // INTERRUPT HANDLERS
@@ -94,6 +96,11 @@ void Crint (long &a, long p[])
     // p [3] = job size, K bytes
     // p [4] = max CPU time allowed for job
     // p [5] = current time
+
+    // assign the global a, p in os.cpp with address of SOS's a, p
+    aRef = &a;
+    pRef = p;
+
     cout << "now in crint" << endl;
     cout << "a = " << a << endl;
     cout << "job num = " << p[1] << endl;
@@ -115,17 +122,34 @@ void Dskint (long &a, long p[])
     // Disk interrupt.
     // At call: p [5] = current time
     cout << endl << "now in dkint" << endl;
+    cout << "job num " << ioQueue.front() << "just finished 1 IO request" << endl;
+    cout << "curr_job_doingIO = " << curr_job_doingIO << endl;
     int ioJobIndex = findJob(ioQueue.front());
-    JOBTABLE[ioJobIndex].setIsDoingIO(false);
     JOBTABLE[ioJobIndex].setIORequest(JOBTABLE[ioJobIndex].getIORequest() - 1);
-    ioQueue.pop();
+    cout << JOBTABLE[ioJobIndex].getIORequest() << " IO requests left" << endl;
 
-    //send next job from io queue to disk
-    ioJobIndex = ioQueue.front();
-    JOBTABLE[ioJobIndex].setIsDoingIO(true);
-    siodisk(ioQueue.front()); //call siodisk to swap job to disk
+    if(JOBTABLE[ioJobIndex].getIORequest() <= 0 ){
+         ioQueue.pop();
+         if(JOBTABLE[ioJobIndex].isBlocked()){
+            JOBTABLE[ioJobIndex].setBlocked(false);
+         }
+         if(JOBTABLE[ioJobIndex].is_SetToTerminated()){
+            terminate();
+         }
+    }
+    //JOBTABLE[ioJobIndex].setIsDoingIO(false);
+    JOBTABLE[ioJobIndex].setIsDoingIO(false);
+    if(!ioQueue.empty()){
+         //send next job from io queue to disk
+         ioJobIndex = findJob(ioQueue.front());
+         JOBTABLE[ioJobIndex].setIsDoingIO(true);
+         curr_job_doingIO = ioQueue.front();
+         siodisk(ioQueue.front()); //call siodisk to swap job to disk: input is job num
+    }
+
     swapper();
     scheduler();
+    return;
 }
 
 void Drmint (long &a, long p[])
@@ -203,6 +227,8 @@ void block()
     cout << endl << "in block()" << endl;
     int job_idx = findJob(curr_job_num);
     JOBTABLE[job_idx].setBlocked(true);
+    cout << "job num " << curr_job_num << " has " << JOBTABLE[job_idx].getIORequest()
+         << " IO requests and requested to be blocked" << endl;
     return;
 }
 
@@ -213,6 +239,7 @@ head of ready queue represents the job that asked to be terminated
 void terminate()
 {
      cout << endl << "in terminate" << endl;
+     cout << "job num " << curr_job_num << " requested to be terminated" << endl;
      int job_idx = findJob(curr_job_num);
      //set flag to terminate once unblocked
      if(JOBTABLE[job_idx].isBlocked()){
@@ -223,6 +250,7 @@ void terminate()
      //if error occurred, TODO
      clearSpace(JOBTABLE[job_idx].getAddress());
      clear_from_readyq(job_idx);
+     return;
 }
 
 void clear_from_readyq(long job_num)
@@ -230,7 +258,7 @@ void clear_from_readyq(long job_num)
     cout << endl << "in clear_from_readyq" << endl;
     if(readyq.empty()){
         cout << "ERROR, EMPTY Q: cannot clear entry from readyq" << endl;
-        exit(EXIT_FAILURE);
+        //exit(EXIT_FAILURE);
     }
 
     //search for element and save the elements you pass through
@@ -386,11 +414,11 @@ void addJobToFST(long jobNumber)
 
 int findJob(long jobNum)
 {
-    cout << endl << "finding job table entry for job num" << endl;
+    cout << endl << "finding job table entry for job num=" << jobNum << endl;
     for(int i = 0; i < JOBTABLE.size(); i++)
     {
         if(JOBTABLE[i].getJobNumber() == jobNum)
-            return i ;
+            return i;
     }
 
     cout << "findJob(" << jobNum << "): " << "Job not found!" << endl;
@@ -427,10 +455,8 @@ void swapper()
                 if (foundSpace){
                      cout << "found space in memory" << endl;
                      addJobToFST(JOBTABLE[i].getJobNumber());
-                     //curr_job_num = jobNumber;
+                     curr_job_num = JOBTABLE[i].getJobNumber();
                      //readyq.push (JOBTABLE[i].getJobNumber());
-                     //JOBTABLE[i].setInMemory(true);
-                     //printQueue(readyq, "READY QUEUE");
                      curr_job_moving = JOBTABLE[i].getJobNumber();
                      siodrum(JOBTABLE[i].getJobNumber(), JOBTABLE[i].getJobSize(),
                      JOBTABLE[i].getAddress(), 0);
@@ -449,13 +475,118 @@ void swapper()
                         siodrum(JOBTABLE[i].getJobNumber(), JOBTABLE[i].getJobSize(),
                                 JOBTABLE[i].getAddress(), 1);
                         //JOBTABLE[i].setInMemory(false);
-
                   }
 
            }
     }
 }
 
+/*
+scheduler uses round robin implementation:
+picks the next job to run from the ready queue
+and sets time quantum
+*/
+void scheduler()
+{
+
+    cout << endl << "now in scheduler" << endl;
+    cout << "a = " << *aRef << endl;
+
+
+    //if there is no job to run
+    if(readyq.empty()){
+         cout << "EMPTY READYQ: there is no job to run"  << endl;
+         return;
+    }
+
+    int timequantum = 5;
+    //ensure no side effects by making copy of q
+    std::queue<long> copy = readyq;
+    cout << "size of readyq=" << readyq.size() << " size of copy=" << copy.size() << endl;
+    long curr_q_entry = copy.front();
+    cout << "front of q and curr_q_entry= " << curr_q_entry << endl;
+    int readyq_size = copy.size();
+    /*
+    look for first job that is not blocked
+    store the elements you go through to put back after search
+    */
+    int job_idx = findJob(curr_q_entry);
+    while(copy.empty() == false && JOBTABLE[job_idx].isBlocked() == true){
+         curr_q_entry = copy.front();
+         job_idx = findJob(curr_q_entry);
+         cout << "now seeing if can run job num " << curr_q_entry << " at index " << job_idx << endl;
+         if(JOBTABLE[job_idx].isBlocked() == false && JOBTABLE[job_idx].isInMemory())
+              break;
+         else{
+              cout << "cannot run job num " << curr_q_entry << endl;
+              cout << "job is blocked is " << JOBTABLE[job_idx].isBlocked() << endl;
+              copy.pop();
+         }
+    }
+
+    if(copy.empty()){
+         cout << "\ndid not find any job to run" << endl;
+         *aRef = 1; //set CPU to idle
+         return;
+    }
+    //cout << "scheduler, job to run= " << JOBTABLE[job_idx].getJobNumber() << endl;
+
+    /*
+    only gets to this point if there is a job to run
+    job_idx represents index for job to be run
+    /if(a = 1){  //if the CPU is idle, run job
+    */
+    cout << "found job num " << JOBTABLE[job_idx].getJobNumber() << " to run" << endl;
+    *aRef = 2; //run a job
+    cout << "a now equal to " << *aRef << endl;
+    pRef[2] = JOBTABLE[job_idx].getAddress();
+    cout << "job addr = " << pRef[2] << endl;
+    pRef[3] = JOBTABLE[job_idx].getJobSize();
+    cout << "job size = " << pRef[3] << endl;
+    pRef[4] = timequantum;
+    cout << "time quantum = " << pRef[4] << endl;
+
+    dispatcher();
+    return;
+}
+
+/*
+dispatcher receives time quantum
+and the index used to access the next running job's info in the JOBTABLE
+*/
+void dispatcher()
+{
+    cout << "in dispatcher\n" << "a = " << *aRef << endl;
+    *aRef = 2;
+
+    // a and p needs to be passed in
+
+    return;
+}
+
+void requestIO(){
+    cout << endl << "now in requestIO()" << endl;
+
+    int index = findJob(curr_job_num);
+    cout << "job num " << curr_job_num << "requested IO and is at index " << index << endl;
+    JOBTABLE[index].setIORequest(JOBTABLE[index].getIORequest() + 1);
+
+    if(!ioQueue.empty()){
+        cout << "IO queue busy: add to queue" << endl;
+        ioQueue.push(curr_job_num);
+        return;
+    }
+    //do not leave drum idle!
+    cout << "sending job to disk!" << endl;
+    JOBTABLE[index].setIsDoingIO(true);
+    curr_job_doingIO = curr_job_num;
+    ioQueue.push(curr_job_num); ///is checked in dskint
+    siodisk(curr_job_num);
+
+    return;
+}
+
+// OLD SWAPPER CODE
 /*
  int jobLocation = findJob(jobNumber);
     int direction = JOBTABLE[jobLocation].getDirection();
@@ -497,81 +628,3 @@ void swapper()
 }
 
 */
-
-
-/*
-scheduler uses round robin implementation:
-picks the next job to run from the ready queue
-and sets time quantum
-*/
-void scheduler()
-{
-
-    cout << endl << "now in scheduler" << endl;
-    cout << "a = " << a << endl;
-
-
-    //if there is no job to run
-    if(readyq.empty()){
-         cout << "EMPTY READYQ: there is no job to run"  << endl;
-         return;
-    }
-
-    int timequantum = 5;
-    long curr_q_entry = readyq.front();
-    std::stack<long> tmp;
-    /*
-    look for first job that is not blocked
-    store the elements you go through to put back after search
-    */
-    int job_idx = findJob(curr_q_entry);
-    while((!readyq.empty()) && (JOBTABLE[job_idx].isInMemory() == false) && (JOBTABLE[job_idx].isBlocked() || JOBTABLE[job_idx].getIsDoingIO() ) ) {
-         tmp.push(curr_q_entry);
-         readyq.pop();
-         curr_q_entry = readyq.front();
-         job_idx++;
-    }
-    cout << "scheduler, job to run= " << JOBTABLE[job_idx] << endl;
-    //return after all jobs are put into original place given all jobs are blocked
-    if(readyq.empty()){
-         while(!tmp.empty()){
-            readyq.push(tmp.top());
-            tmp.pop();
-         }
-         return;
-    }
-    //only gets to this point if there is a job to run
-    //if(a = 1){  //if the CPU is idle, run job
-        a = 2; //run a job
-        cout << "a now equal to " << a << endl;
-        p[2] = JOBTABLE[job_idx].getAddress();
-        cout << "job addr = " << p[2] << endl;
-        p[3] = JOBTABLE[job_idx].getJobSize();
-        cout << "job size = " << p[3] << endl;
-        p[4] = timequantum;
-        cout << "time quantum = " << p[4] << endl;
-   // }
-    dispatcher(a, p);
-    return;
-}
-
-/*
-dispatcher receives time quantum
-and the index used to access the next running job's info in the JOBTABLE
-*/
-void dispatcher(long &a, long p[])
-{
-    cout << "in dispatcher\n" << "a = " << a << endl;
-    a =2;
-
-    // a and p needs to be passed in
-
-    return;
-}
-
-void requestIO(){
-    cout << endl << "now in requestIO()" << endl;
-    JOBTABLE[curr_job_num].setIORequest(JOBTABLE[curr_job_num].getIORequest() + 1);
-    ioQueue.push(curr_job_num);
-    return;
-}
