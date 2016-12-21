@@ -21,6 +21,9 @@ class Job
     bool isDoingIO;
 
   public:
+    long time_sent_to_CPU;
+	long time_in_CPU;
+
     //default constructor
     Job()
     {
@@ -33,6 +36,8 @@ class Job
         timeArrived = 0;
         ioRequest = 0;
         priority = 0;
+        time_sent_to_CPU = -1;
+        time_in_CPU = 0;
 
         latched = false;
         blocked = false;
@@ -55,6 +60,8 @@ class Job
         this->ioRequest = 0; //start with no I/O requests
         this->priority = priority;
         this->direction = 0;
+        time_sent_to_CPU = -1;
+        time_in_CPU = 0;
 
         this->latched = false;
         this->blocked = false;
